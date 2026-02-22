@@ -1,0 +1,27 @@
+package main
+
+import (
+	"backend_webcheckin/internal/repository"
+	"context"
+	"fmt"
+)
+
+func main() {
+	repo, err := repository.NewRepository("localhost", "user", "password", "skyhigh_db", 5432, "localhost", 6379, "")
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+	defer repo.Close()
+
+	ctx := context.Background()
+	seatNo, err := repo.FindInitialSeatByPNR(ctx, "ABC123")
+	fmt.Printf("Initial Seat for ABC123: %v, err: %v\n", seatNo, err)
+
+    booking, _ := repo.FindBookingByPNR(ctx, "ABC123", "")
+    oldSeat, _ := repo.GetSeatByFlightAndSeatNo(ctx, booking.FlightID, seatNo)
+    fmt.Printf("Old Seat ID: %v\n", oldSeat.ID)
+
+    err = repo.ReleaseOldSeat(ctx, oldSeat.ID)
+    fmt.Printf("ReleaseOldSeat err: %v\n", err)
+}

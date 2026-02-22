@@ -1,0 +1,58 @@
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Node.js / React (Frontend)
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.env
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Go (Backends)
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+# Test binaries and coverage reports
+*.test
+*.out
+*.prof
+*coverage.html
+*coverage.out
+backend/coverage.html
+backend/coverage.out
+backend_webcheckin/coverage.html
+backend_webcheckin/coverage.out
+
+# Python (if any virtual environments are created in root)
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Temporary and local files
+*.log
+tmp/
+temp/

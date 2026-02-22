@@ -1,0 +1,46 @@
+package main
+
+import (
+	"backend_webcheckin/internal/repository"
+	"backend_webcheckin/internal/service"
+	"context"
+	"fmt"
+)
+
+func main() {
+	repo, err := repository.NewRepository("localhost", "user", "password", "skyhigh_db", 5432, "localhost", 6379, "")
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+	defer repo.Close()
+
+	svc := service.NewCheckInService(repo, 120)
+
+	ctx := context.Background()
+
+    // Assuming ABC123's initial seat is 1E
+	booking, _, err := svc.LookupBooking(ctx, "ABC123", "")
+	fmt.Printf("Initial Seat for ABC123: %v, err: %v\n", booking.InitialSeatNo, err)
+
+    // Complete checkin with a NEW seat: 1A
+    // First hold 1A
+    _, _, err = svc.HoldSeat(ctx, "ABC123", booking.FlightID, "1A")
+    fmt.Println("HoldSeat 1A err:", err)
+
+    checkIn, p, err := svc.CompleteCheckIn(ctx, booking, "1A", 10.0)
+    fmt.Println("CompleteCheckIn err:", err)
+    if checkIn != nil {
+        fmt.Println("Checkin ID:", checkIn.ID)
+    }
+    if p != nil {
+        fmt.Println("Boarding Pass:", p.Seat)
+    }
+
+    // Now check if 1E is free
+    oldSeat, _ := repo.GetSeatByFlightAndSeatNo(ctx, booking.FlightID, "1E")
+    fmt.Println("Is 1E booked?", oldSeat.IsBooked)
+
+    newSeat, _ := repo.GetSeatByFlightAndSeatNo(ctx, booking.FlightID, "1A")
+    fmt.Println("Is 1A booked?", newSeat.IsBooked)
+}

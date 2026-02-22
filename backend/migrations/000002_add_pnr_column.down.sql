@@ -1,0 +1,2 @@
+DROP INDEX IF EXISTS idx_bookings_pnr;
+ALTER TABLE bookings DROP COLUMN IF EXISTS pnr;

@@ -1,0 +1,954 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>migrate: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">digital-checkin/cmd/migrate/main.go (0.0%)</option>
+				
+				<option value="file1">digital-checkin/cmd/server/main.go (0.0%)</option>
+				
+				<option value="file2">digital-checkin/internal/api/handler.go (54.9%)</option>
+				
+				<option value="file3">digital-checkin/internal/core/seeder.go (0.0%)</option>
+				
+				<option value="file4">digital-checkin/internal/repository/postgres.go (71.8%)</option>
+				
+				<option value="file5">digital-checkin/internal/service/seat_service.go (74.5%)</option>
+				
+				<option value="file6">digital-checkin/pkg/config/config.go (0.0%)</option>
+				
+				<option value="file7">digital-checkin/pkg/db/db.go (0.0%)</option>
+				
+				<option value="file8">digital-checkin/pkg/redis/client.go (0.0%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">not covered</span>
+				<span class="cov8">covered</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">package main
+
+import (
+        "fmt"
+        "log"
+        "os"
+
+        "digital-checkin/pkg/config"
+        "digital-checkin/pkg/db"
+)
+
+func main() <span class="cov0" title="0">{
+        cfg := config.LoadConfig()
+    
+    // Override host for migration if running from separate container or same
+    // Just use config
+    
+        database, err := db.Connect(cfg.DBUrl)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Fatalf("Could not connect to database for migration: %v", err)
+        }</span>
+        <span class="cov0" title="0">defer database.Close()
+
+        log.Println("Running migrations...")
+    
+    // Read the SQL file
+    // In a real app we'd iterate over files. Here we have just 000001_create_initial_schema.up.sql
+    // We need to bake this file into the binary or read from disk. 
+    // Dockerfile copies ./migrations so we can read from disk.
+    
+    content, err := os.ReadFile("migrations/000001_create_initial_schema.up.sql")
+    if err != nil </span><span class="cov0" title="0">{
+        log.Fatalf("Failed to read migration file: %v", err)
+    }</span>
+    
+    <span class="cov0" title="0">if _, err := database.Exec(string(content)); err != nil </span><span class="cov0" title="0">{
+         // Check if it's already applied? or simple ignore
+         // For CREATE TABLE IF NOT EXISTS it's fine.
+         log.Printf("Migration warning (might be already applied): %v", err)
+    }</span> else<span class="cov0" title="0"> {
+        log.Println("Migration applied successfully.")
+    }</span>
+    
+    // Seeding?
+    // We can call the core seeder here too if needed, or stick to main app seeding.
+    // Let's keep seeding in main app for now as it's optional there.
+    
+    <span class="cov0" title="0">fmt.Println("Migration complete.")</span>
+}
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">package main
+
+import (
+        "log"
+        "net/http"
+
+        "digital-checkin/internal/api"
+        "digital-checkin/internal/core"
+        "digital-checkin/internal/repository"
+        "digital-checkin/internal/service"
+        "digital-checkin/pkg/config"
+        "digital-checkin/pkg/db"
+        "digital-checkin/pkg/redis"
+)
+
+func main() <span class="cov0" title="0">{
+        // 1. Load Config
+        cfg := config.LoadConfig()
+
+        // 2. Connect to Database
+        database, err := db.Connect(cfg.DBUrl)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Fatalf("Could not connect to database: %v", err)
+        }</span>
+        <span class="cov0" title="0">defer database.Close()
+
+        // 3. Connect to Redis
+        rdb, err := redis.Connect(cfg.RedisAddr)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Fatalf("Could not connect to redis: %v", err)
+        }</span>
+        <span class="cov0" title="0">defer rdb.Close()
+
+        // 4. Run Seeder (Optional, usually behind a flag or check)
+        seeder := core.NewSeeder(database)
+        if err := seeder.Seed(); err != nil </span><span class="cov0" title="0">{
+                log.Printf("Data seeding warning: %v", err)
+        }</span>
+
+        // 5. Initialize Layers
+        <span class="cov0" title="0">repo := repository.NewRepository(database)
+        seatService := service.NewSeatService(repo, rdb)
+        handler := api.NewHandler(seatService)
+
+        // 6. Start Server
+        srv := &amp;http.Server{
+                Addr:    cfg.ServerPort,
+                Handler: handler.Routes(),
+        }
+
+        log.Printf("Server starting on port %s", cfg.ServerPort)
+        if err := srv.ListenAndServe(); err != nil &amp;&amp; err != http.ErrServerClosed </span><span class="cov0" title="0">{
+                log.Fatalf("Server failed: %v", err)
+        }</span>
+}
+</pre>
+		
+		<pre class="file" id="file2" style="display: none">package api
+
+import (
+        "digital-checkin/internal/service"
+        "encoding/json"
+        "fmt"
+        "net/http"
+
+        "github.com/go-chi/chi/v5"
+        "github.com/go-chi/cors"
+        "github.com/google/uuid"
+)
+
+type Handler struct {
+        SeatService *service.SeatService
+}
+
+func NewHandler(seatService *service.SeatService) *Handler <span class="cov8" title="1">{
+        return &amp;Handler{SeatService: seatService}
+}</span>
+
+func (h *Handler) GetFlights(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+        flights, err := h.SeatService.GetAllFlights(r.Context())
+        if err != nil </span><span class="cov0" title="0">{
+                http.Error(w, "Failed to fetch flights", http.StatusInternalServerError)
+                return
+        }</span>
+        <span class="cov8" title="1">w.Header().Set("Content-Type", "application/json")
+        json.NewEncoder(w).Encode(flights)</span>
+}
+
+func (h *Handler) GetSeats(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+        flightIDStr := chi.URLParam(r, "flightID")
+        flightID, err := uuid.Parse(flightIDStr)
+        if err != nil </span><span class="cov0" title="0">{
+                http.Error(w, "Invalid flight ID", http.StatusBadRequest)
+                return
+        }</span>
+
+        <span class="cov8" title="1">seats, err := h.SeatService.GetFlightSeats(r.Context(), flightID)
+        if err != nil </span><span class="cov0" title="0">{
+                http.Error(w, "Failed to fetch seats", http.StatusInternalServerError)
+                return
+        }</span>
+
+        <span class="cov8" title="1">w.Header().Set("Content-Type", "application/json")
+        json.NewEncoder(w).Encode(map[string]interface{}{
+                "flight_id": flightID,
+                "seats":     seats,
+        })</span>
+}
+
+type HoldSeatRequest struct {
+    UserID string `json:"user_id"`
+}
+
+func (h *Handler) HoldSeat(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+    flightIDStr := chi.URLParam(r, "flightID")
+    seatNo := chi.URLParam(r, "seatNo")
+    
+    flightID, err := uuid.Parse(flightIDStr)
+    if err != nil </span><span class="cov0" title="0">{
+        http.Error(w, "Invalid flight ID", http.StatusBadRequest)
+        return
+    }</span>
+
+    <span class="cov8" title="1">var req HoldSeatRequest
+    if err := json.NewDecoder(r.Body).Decode(&amp;req); err != nil </span><span class="cov0" title="0">{
+        http.Error(w, "Invalid request body", http.StatusBadRequest)
+        return
+    }</span>
+    
+    <span class="cov8" title="1">if req.UserID == "" </span><span class="cov0" title="0">{
+        http.Error(w, "user_id is required", http.StatusBadRequest)
+        return
+    }</span>
+
+    <span class="cov8" title="1">token, expiresAt, err := h.SeatService.HoldSeat(r.Context(), flightID, seatNo, req.UserID)
+    if err != nil </span><span class="cov0" title="0">{
+        if err.Error() == fmt.Sprintf("seat %s is currently held by another user", seatNo) || 
+           err.Error() == fmt.Sprintf("seat %s is already booked", seatNo) </span><span class="cov0" title="0">{
+            http.Error(w, err.Error(), http.StatusConflict)
+            return   
+        }</span>
+        <span class="cov0" title="0">if err.Error() == "seat not found" </span><span class="cov0" title="0">{
+             http.Error(w, err.Error(), http.StatusNotFound)
+             return
+        }</span>
+        
+        <span class="cov0" title="0">http.Error(w, "Failed to hold seat", http.StatusInternalServerError)
+        return</span>
+    }
+
+    <span class="cov8" title="1">w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(map[string]interface{}{
+        "message": "Seat held successfully",
+        "seat_no": seatNo,
+        "token": token, 
+        "expires_at": expiresAt,
+    })</span>
+}
+
+// ConfirmCheckInRequest payload
+type ConfirmCheckInRequest struct {
+    FlightID      string  `json:"flight_id"`
+    SeatNo        string  `json:"seat_no"`
+    UserID        string  `json:"user_id"`
+    FirstName     string  `json:"first_name"`
+    LastName      string  `json:"last_name"`
+    Passport      string  `json:"passport"`
+    BaggageWeight float64 `json:"baggage_weight"`
+}
+
+func (h *Handler) ConfirmCheckIn(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+    var req ConfirmCheckInRequest
+    if err := json.NewDecoder(r.Body).Decode(&amp;req); err != nil </span><span class="cov0" title="0">{
+        http.Error(w, "Invalid request body", http.StatusBadRequest)
+        return
+    }</span>
+    
+    <span class="cov8" title="1">flightID, err := uuid.Parse(req.FlightID)
+    if err != nil </span><span class="cov0" title="0">{
+        http.Error(w, "Invalid flight ID", http.StatusBadRequest)
+        return
+    }</span>
+    
+    <span class="cov8" title="1">booking, err := h.SeatService.ConfirmCheckIn(r.Context(), service.CheckInRequest{
+        FlightID:           flightID,
+        SeatNo:             req.SeatNo,
+        UserID:             req.UserID,
+        PassengerFirstName: req.FirstName,
+        PassengerLastName:  req.LastName,
+        PassengerPassport:  req.Passport,
+        BaggageWeight:      req.BaggageWeight,
+    })
+    
+    if err != nil </span><span class="cov0" title="0">{
+        if err.Error() == "seat hold expired or invalid" || err.Error() == "seat is held by another user" </span><span class="cov0" title="0">{
+             http.Error(w, err.Error(), http.StatusConflict) // 409
+             return
+        }</span>
+        <span class="cov0" title="0">if err.Error() == "baggage weight exceeds 25kg limit. Payment required" </span><span class="cov0" title="0">{
+             http.Error(w, err.Error(), http.StatusPaymentRequired) // 402
+             return
+        }</span>
+        <span class="cov0" title="0">http.Error(w, fmt.Sprintf("Check-in failed: %v", err), http.StatusInternalServerError)
+        return</span>
+    }
+    
+    <span class="cov8" title="1">w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(booking)</span>
+}
+
+
+func (h *Handler) Routes() http.Handler <span class="cov8" title="1">{
+        r := chi.NewRouter()
+    
+    // Basic CORS
+    r.Use(cors.Handler(cors.Options{
+        AllowedOrigins:   []string{"https://*", "http://*"},
+        AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+        AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+        ExposedHeaders:   []string{"Link"},
+        AllowCredentials: true,
+        MaxAge:           300,
+    }))
+
+    r.Route("/api/v1", func(r chi.Router) </span><span class="cov8" title="1">{
+        r.Get("/flights", h.GetFlights)
+        r.Get("/flights/{flightID}/seats", h.GetSeats)
+        r.Post("/flights/{flightID}/seats/{seatNo}/hold", h.HoldSeat)
+        r.Post("/checkin/confirm", h.ConfirmCheckIn)
+    }</span>)
+        <span class="cov8" title="1">return r</span>
+}
+</pre>
+		
+		<pre class="file" id="file3" style="display: none">package core
+
+import (
+        "context"
+        "database/sql"
+        "fmt"
+        "log"
+        "time"
+
+        "github.com/google/uuid"
+)
+
+type Seeder struct {
+        DB *sql.DB
+}
+
+func NewSeeder(db *sql.DB) *Seeder <span class="cov0" title="0">{
+        return &amp;Seeder{DB: db}
+}</span>
+
+func (s *Seeder) Seed() error <span class="cov0" title="0">{
+        ctx := context.Background()
+
+        // Check if flights exist
+        var count int
+        err := s.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM flights").Scan(&amp;count)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+
+        <span class="cov0" title="0">if count &gt; 0 </span><span class="cov0" title="0">{
+                log.Println("Data already seeded, skipping...")
+                return nil
+        }</span>
+
+        <span class="cov0" title="0">log.Println("Seeding data for next 2 months...")
+
+        // Generate flights for the next 60 days (2 months)
+        baseDate := time.Now()
+        
+        for day := 0; day &lt; 60; day++ </span><span class="cov0" title="0">{
+                departureDate := baseDate.Add(time.Duration(day) * 24 * time.Hour)
+                
+                // Create unique flight codes for each day
+                dayStr := fmt.Sprintf("%02d", day)
+                
+                // 1. Flight Type A (Small - 6 seats/row)
+                // 6 rows * 6 cols = 36 seats
+                flightCode1 := fmt.Sprintf("FL001-D%s", dayStr)
+                err = s.createFlightWithSeatsAndDate(ctx, flightCode1, "Pune", "New York", "Type A", 6, 6, departureDate)
+                if err != nil </span><span class="cov0" title="0">{
+                        return err
+                }</span>
+
+                // 2. Flight Type B (4 seats/row * 18 rows)
+                <span class="cov0" title="0">flightCode2 := fmt.Sprintf("FL002-D%s", dayStr)
+                err = s.createFlightWithSeatsAndDate(ctx, flightCode2, "Los Angeles", "London", "Type B", 18, 4, departureDate)
+                if err != nil </span><span class="cov0" title="0">{
+                        return err
+                }</span>
+
+                // 3. Flight Type C (International - 12 seats/row)
+                // 10 rows * 12 cols = 120 seats
+                <span class="cov0" title="0">flightCode3 := fmt.Sprintf("FL003-D%s", dayStr)
+                err = s.createFlightWithSeatsAndDate(ctx, flightCode3, "Mumbai", "Tokyo", "Type C", 10, 12, departureDate)
+                if err != nil </span><span class="cov0" title="0">{
+                        return err
+                }</span>
+        }
+
+        <span class="cov0" title="0">log.Printf("Seeding completed successfully. Created %d flights for next 60 days.", 60*3)
+        return nil</span>
+}
+
+func (s *Seeder) createFlightWithSeatsAndDate(ctx context.Context, code, source, dest, pType string, rows, cols int, depTime time.Time) error <span class="cov0" title="0">{
+        flightID := uuid.New()
+
+        _, err := s.DB.ExecContext(ctx, `
+                INSERT INTO flights (id, code, source, destination, departure_time, plane_type)
+                VALUES ($1, $2, $3, $4, $5, $6)
+        `, flightID, code, source, dest, depTime, pType)
+
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to insert flight %s: %v", code, err)
+        }</span>
+
+        // Generate Seats
+        <span class="cov0" title="0">stmt, err := s.DB.PrepareContext(ctx, `
+                INSERT INTO seats (flight_id, seat_no, row_num, col_num, category)
+                VALUES ($1, $2, $3, $4, $5)
+        `)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov0" title="0">defer stmt.Close()
+
+        colLetters := "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+        for r := 1; r &lt;= rows; r++ </span><span class="cov0" title="0">{
+                for c := 0; c &lt; cols; c++ </span><span class="cov0" title="0">{
+                        colChar := string(colLetters[c])
+                        seatNo := fmt.Sprintf("%d%s", r, colChar)
+                        category := "STANDARD"
+                        
+                        // Simple logic: First 2 rows are PREMIUM
+                        if r &lt;= 2 </span><span class="cov0" title="0">{
+                                category = "PREMIUM"
+                        }</span>
+
+                        <span class="cov0" title="0">_, err := stmt.ExecContext(ctx, flightID, seatNo, r, colChar, category)
+                        if err != nil </span><span class="cov0" title="0">{
+                                return fmt.Errorf("failed to insert seat %s: %v", seatNo, err)
+                        }</span>
+                }
+        }
+        
+        <span class="cov0" title="0">log.Printf("Created Flight %s (%s) from %s to %s with %d seats.", code, pType, source, dest, rows*cols)
+        return nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file4" style="display: none">package repository
+
+import (
+        "context"
+        "database/sql"
+        "digital-checkin/internal/core"
+        "fmt"
+        "math/rand"
+        "time"
+
+        "github.com/google/uuid"
+)
+
+type Repository struct {
+        DB *sql.DB
+}
+
+func NewRepository(db *sql.DB) *Repository <span class="cov8" title="1">{
+        return &amp;Repository{DB: db}
+}</span>
+
+func (r *Repository) GetFlightByID(ctx context.Context, flightID uuid.UUID) (*core.Flight, error) <span class="cov0" title="0">{
+        query := `
+                SELECT id, code, source, destination, departure_time, plane_type, created_at, updated_at
+                FROM flights
+                WHERE id = $1
+        `
+        var f core.Flight
+        err := r.DB.QueryRowContext(ctx, query, flightID).Scan(
+                &amp;f.ID, &amp;f.Code, &amp;f.Source, &amp;f.Destination, &amp;f.DepartureTime, &amp;f.PlaneType, &amp;f.CreatedAt, &amp;f.UpdatedAt,
+        )
+        if err != nil </span><span class="cov0" title="0">{
+                if err == sql.ErrNoRows </span><span class="cov0" title="0">{
+                        return nil, nil // Not found
+                }</span>
+                <span class="cov0" title="0">return nil, err</span>
+        }
+        <span class="cov0" title="0">return &amp;f, nil</span>
+}
+
+func (r *Repository) GetSeatsByFlightID(ctx context.Context, flightID uuid.UUID) ([]core.Seat, error) <span class="cov8" title="1">{
+        query := `
+                SELECT id, flight_id, seat_no, row_num, col_num, category, is_booked, created_at, updated_at
+                FROM seats
+                WHERE flight_id = $1
+                ORDER BY row_num, col_num
+        `
+        rows, err := r.DB.QueryContext(ctx, query, flightID)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov8" title="1">defer rows.Close()
+
+        var seats []core.Seat
+        for rows.Next() </span><span class="cov8" title="1">{
+                var s core.Seat
+                err := rows.Scan(
+                        &amp;s.ID, &amp;s.FlightID, &amp;s.SeatNo, &amp;s.RowNum, &amp;s.ColNum, &amp;s.Category, &amp;s.IsBooked, &amp;s.CreatedAt, &amp;s.UpdatedAt,
+                )
+                if err != nil </span><span class="cov0" title="0">{
+                        return nil, err
+                }</span>
+                
+                <span class="cov8" title="1">if s.IsBooked </span><span class="cov0" title="0">{
+                        s.Status = core.SeatConfirmed
+                }</span> else<span class="cov8" title="1"> {
+                        s.Status = core.SeatAvailable
+                }</span>
+                <span class="cov8" title="1">seats = append(seats, s)</span>
+        }
+        <span class="cov8" title="1">return seats, nil</span>
+}
+
+func (r *Repository) GetAllFlights(ctx context.Context) ([]core.Flight, error) <span class="cov8" title="1">{
+        query := `SELECT id, code, source, destination, departure_time, plane_type, created_at, updated_at FROM flights`
+        rows, err := r.DB.QueryContext(ctx, query)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov8" title="1">defer rows.Close()
+
+        var flights []core.Flight
+        for rows.Next() </span><span class="cov8" title="1">{
+                var f core.Flight
+                if err := rows.Scan(&amp;f.ID, &amp;f.Code, &amp;f.Source, &amp;f.Destination, &amp;f.DepartureTime, &amp;f.PlaneType, &amp;f.CreatedAt, &amp;f.UpdatedAt); err != nil </span><span class="cov0" title="0">{
+                        return nil, err
+                }</span>
+                <span class="cov8" title="1">flights = append(flights, f)</span>
+        }
+        <span class="cov8" title="1">return flights, nil</span>
+}
+
+func (r *Repository) IsSeatBooked(ctx context.Context, flightID uuid.UUID, seatNo string) (bool, error) <span class="cov8" title="1">{
+    var isBooked bool
+    query := `SELECT is_booked FROM seats WHERE flight_id = $1 AND seat_no = $2`
+    err := r.DB.QueryRowContext(ctx, query, flightID, seatNo).Scan(&amp;isBooked)
+    if err != nil </span><span class="cov0" title="0">{
+        if err == sql.ErrNoRows </span><span class="cov0" title="0">{
+            return false, fmt.Errorf("seat not found")
+        }</span>
+        <span class="cov0" title="0">return false, err</span>
+    }
+    <span class="cov8" title="1">return isBooked, nil</span>
+}
+
+// CreateBooking performs a transaction:
+// 1. Get Seat ID
+// 2. Insert Booking
+// 3. Update Seat -&gt; is_booked = true
+func (r *Repository) CreateBooking(ctx context.Context, flightID uuid.UUID, seatNo, fName, lName, passport string) (*core.Booking, error) <span class="cov8" title="1">{
+    tx, err := r.DB.BeginTx(ctx, nil)
+    if err != nil </span><span class="cov0" title="0">{
+        return nil, err
+    }</span>
+    <span class="cov8" title="1">defer tx.Rollback()
+
+    // 1. Get Seat ID and lock row if seat is selected
+    var seatID *uuid.UUID
+
+    if seatNo != "" </span><span class="cov8" title="1">{
+        var id uuid.UUID
+        var isBooked bool
+        err = tx.QueryRowContext(ctx, `SELECT id, is_booked FROM seats WHERE flight_id = $1 AND seat_no = $2 FOR UPDATE`, flightID, seatNo).Scan(&amp;id, &amp;isBooked)
+        if err != nil </span><span class="cov0" title="0">{
+            return nil, err
+        }</span>
+        
+        <span class="cov8" title="1">if isBooked </span><span class="cov0" title="0">{
+            return nil, fmt.Errorf("seat already booked in DB (check failed)")
+        }</span>
+        <span class="cov8" title="1">seatID = &amp;id</span>
+    }
+
+    // 2. Insert Booking
+    <span class="cov8" title="1">bookingID := uuid.New()
+    // Use last 8 digits of UnixNano for brevity + random component or just random string
+    // REF-12345678 (12 chars)
+    bookingRef := fmt.Sprintf("REF-%d", time.Now().UnixNano()%100000000)
+    
+        // Generate PNR
+        pnr := generatePNR()
+
+    _, err = tx.ExecContext(ctx, `
+        INSERT INTO bookings (id, flight_id, seat_id, passenger_first_name, passenger_last_name, passenger_passport, status, booking_reference, pnr)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `, bookingID, flightID, seatID, fName, lName, passport, "CONFIRMED", bookingRef, pnr)
+    if err != nil </span><span class="cov0" title="0">{
+        return nil, err
+    }</span>
+
+    // 3. Update Seat if selected
+    <span class="cov8" title="1">if seatID != nil </span><span class="cov8" title="1">{
+        _, err = tx.ExecContext(ctx, `UPDATE seats SET is_booked = TRUE, updated_at = NOW() WHERE id = $1`, seatID)
+        if err != nil </span><span class="cov0" title="0">{
+            return nil, err
+        }</span>
+    }
+
+    <span class="cov8" title="1">if err := tx.Commit(); err != nil </span><span class="cov0" title="0">{
+        return nil, err
+    }</span>
+
+    <span class="cov8" title="1">return &amp;core.Booking{
+        ID: bookingID,
+        FlightID: flightID,
+        SeatID: seatID,
+        PassengerFirstName: fName,
+        PassengerLastName: lName, 
+        PassengerPassport: passport,
+        Status: "CONFIRMED",
+        BookingReference: bookingRef,
+                PNR: pnr,
+        CreatedAt: time.Now(),
+    }, nil</span>
+}
+
+func generatePNR() string <span class="cov8" title="1">{
+        const charset = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789" // Exclude I, O, 0, 1 for clarity
+        seededRand := rand.New(rand.NewSource(time.Now().UnixNano()))
+        b := make([]byte, 6)
+        for i := range b </span><span class="cov8" title="1">{
+                b[i] = charset[seededRand.Intn(len(charset))]
+        }</span>
+        <span class="cov8" title="1">return string(b)</span>
+}
+</pre>
+		
+		<pre class="file" id="file5" style="display: none">package service
+
+import (
+        "context"
+        "digital-checkin/internal/core"
+        "digital-checkin/internal/repository"
+        "fmt"
+        "time"
+
+        "github.com/google/uuid"
+        "github.com/redis/go-redis/v9"
+)
+
+type SeatService struct {
+        Repo  *repository.Repository
+        Redis *redis.Client
+}
+
+func NewSeatService(repo *repository.Repository, rdb *redis.Client) *SeatService <span class="cov8" title="1">{
+        return &amp;SeatService{
+                Repo:  repo,
+                Redis: rdb,
+        }
+}</span>
+
+// GetFlightSeats merges DB state (CONFIRMED) with Redis state (HELD).
+func (s *SeatService) GetFlightSeats(ctx context.Context, flightID uuid.UUID) ([]core.Seat, error) <span class="cov8" title="1">{
+        // 1. Get Seats from DB
+        seats, err := s.Repo.GetSeatsByFlightID(ctx, flightID)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("failed to fetch seats from DB: %w", err)
+        }</span>
+
+        // 2. Check Redis for any active HOLDS
+        <span class="cov8" title="1">pipe := s.Redis.Pipeline()
+    cmds := make(map[string]*redis.IntCmd)
+
+        for _, seat := range seats </span><span class="cov8" title="1">{
+                if !seat.IsBooked </span><span class="cov8" title="1">{
+                        key := fmt.Sprintf("hold:%s:%s", flightID, seat.SeatNo)
+                        cmds[seat.SeatNo] = pipe.Exists(ctx, key)
+                }</span>
+        }
+
+        <span class="cov8" title="1">_, err = pipe.Exec(ctx)
+        if err != nil &amp;&amp; err != redis.Nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("failed to check redis holds: %w", err)
+        }</span>
+
+        // 3. Merge Status
+        <span class="cov8" title="1">for i, seat := range seats </span><span class="cov8" title="1">{
+                if seat.IsBooked </span><span class="cov0" title="0">{
+                        seats[i].Status = core.SeatConfirmed
+                        continue</span>
+                }
+
+                <span class="cov8" title="1">if cmd, ok := cmds[seat.SeatNo]; ok </span><span class="cov8" title="1">{
+            if cmd.Val() &gt; 0 </span><span class="cov0" title="0">{
+                seats[i].Status = core.SeatHeld
+            }</span> else<span class="cov8" title="1"> {
+                seats[i].Status = core.SeatAvailable
+            }</span>
+        }
+        }
+
+        <span class="cov8" title="1">return seats, nil</span>
+}
+
+func (s *SeatService) GetAllFlights(ctx context.Context) ([]core.Flight, error) <span class="cov8" title="1">{
+        return s.Repo.GetAllFlights(ctx)
+}</span>
+
+// HoldSeat attempts to hold a seat for 120 seconds.
+func (s *SeatService) HoldSeat(ctx context.Context, flightID uuid.UUID, seatNo string, userID string) (string, time.Time, error) <span class="cov8" title="1">{
+    isBooked, err := s.Repo.IsSeatBooked(ctx, flightID, seatNo)
+    if err != nil </span><span class="cov0" title="0">{
+        return "", time.Time{}, fmt.Errorf("failed to check seat status: %w", err)
+    }</span>
+    <span class="cov8" title="1">if isBooked </span><span class="cov0" title="0">{
+        return "", time.Time{}, fmt.Errorf("seat %s is already booked", seatNo)
+    }</span>
+
+    <span class="cov8" title="1">key := fmt.Sprintf("hold:%s:%s", flightID, seatNo)
+    expiration := 45 * time.Second
+    
+    success, err := s.Redis.SetNX(ctx, key, userID, expiration).Result()
+    if err != nil </span><span class="cov0" title="0">{
+        return "", time.Time{}, fmt.Errorf("redis error: %w", err)
+    }</span>
+    
+    <span class="cov8" title="1">if !success </span><span class="cov0" title="0">{
+        return "", time.Time{}, fmt.Errorf("seat %s is currently held by another user", seatNo)
+    }</span>
+    
+    <span class="cov8" title="1">expiresAt := time.Now().Add(expiration)
+    return key, expiresAt, nil</span>
+}
+
+type CheckInRequest struct {
+    FlightID uuid.UUID
+    SeatNo   string
+    UserID   string
+     PassengerFirstName string
+    PassengerLastName  string
+    PassengerPassport  string
+    BaggageWeight       float64
+}
+
+// ConfirmCheckIn finalizes the booking
+func (s *SeatService) ConfirmCheckIn(ctx context.Context, req CheckInRequest) (*core.Booking, error) <span class="cov8" title="1">{
+    // 1. Verify Hold Logic ONLY if seat is selected
+    if req.SeatNo != "" </span><span class="cov8" title="1">{
+        // In a real system, we'd check if the UserID matches the one who holds the lock.
+        key := fmt.Sprintf("hold:%s:%s", req.FlightID, req.SeatNo)
+        holderID, err := s.Redis.Get(ctx, key).Result()
+        
+        if err == redis.Nil </span><span class="cov0" title="0">{
+            return nil, fmt.Errorf("seat hold expired or invalid")
+        }</span> else<span class="cov8" title="1"> if err != nil </span><span class="cov0" title="0">{
+             return nil, fmt.Errorf("redis error: %w", err)
+        }</span>
+        
+        <span class="cov8" title="1">if holderID != req.UserID </span><span class="cov0" title="0">{
+            return nil, fmt.Errorf("seat is held by another user")
+        }</span>
+    }
+    
+    // 2. Validate Baggage
+    <span class="cov8" title="1">if req.BaggageWeight &gt; 25.0 </span><span class="cov0" title="0">{
+        return nil, fmt.Errorf("baggage weight exceeds 25kg limit. Payment required")
+    }</span>
+    
+    // 3. Create Booking in DB (Transactional)
+    // This should ideally be a TX: Insert Booking + Update Seat IsBooked = TRUE
+    <span class="cov8" title="1">booking, err := s.Repo.CreateBooking(ctx, req.FlightID, req.SeatNo, req.PassengerFirstName, req.PassengerLastName, req.PassengerPassport)
+    if err != nil </span><span class="cov0" title="0">{
+        return nil, fmt.Errorf("failed to create booking: %w", err)
+    }</span>
+    
+    // 4. Release Hold (Optional, but good practice to clear Redis)
+    <span class="cov8" title="1">if req.SeatNo != "" </span><span class="cov8" title="1">{
+        key := fmt.Sprintf("hold:%s:%s", req.FlightID, req.SeatNo)
+        s.Redis.Del(ctx, key)
+    }</span>
+    
+    <span class="cov8" title="1">return booking, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file6" style="display: none">package config
+
+import (
+        "os"
+
+        "github.com/joho/godotenv"
+)
+
+type Config struct {
+        DBUrl      string
+        RedisAddr  string
+        ServerPort string
+}
+
+func LoadConfig() *Config <span class="cov0" title="0">{
+        // Attempt to load .env, but don't fail if it doesn't exist (e.g. in Docker)
+        _ = godotenv.Load()
+
+        return &amp;Config{
+                DBUrl:      getEnv("DATABASE_URL", "postgres://user:password@localhost:5432/skyhigh_db?sslmode=disable"),
+                RedisAddr:  getEnv("REDIS_ADDR", "localhost:6379"),
+                ServerPort: getEnv("SERVER_PORT", ":8080"),
+        }
+}</span>
+
+func getEnv(key, fallback string) string <span class="cov0" title="0">{
+        if value, exists := os.LookupEnv(key); exists </span><span class="cov0" title="0">{
+                return value
+        }</span>
+        <span class="cov0" title="0">return fallback</span>
+}
+</pre>
+		
+		<pre class="file" id="file7" style="display: none">package db
+
+import (
+        "context"
+        "database/sql"
+        "fmt"
+        "log"
+        "time"
+
+        _ "github.com/jackc/pgx/v5/stdlib" // pgx driver
+)
+
+func Connect(dbUrl string) (*sql.DB, error) <span class="cov0" title="0">{
+        db, err := sql.Open("pgx", dbUrl)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("unable to connect to database: %v", err)
+        }</span>
+
+        <span class="cov0" title="0">ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+        defer cancel()
+
+        if err := db.PingContext(ctx); err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("unable to ping database: %v", err)
+        }</span>
+
+        // Connection pool settings
+        <span class="cov0" title="0">db.SetMaxOpenConns(25)
+        db.SetMaxIdleConns(25)
+        db.SetConnMaxLifetime(5 * time.Minute)
+
+        log.Println("Connected to PostgreSQL successfully")
+        return db, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file8" style="display: none">package redis
+
+import (
+        "context"
+        "fmt"
+        "log"
+
+        "github.com/redis/go-redis/v9"
+)
+
+func Connect(addr string) (*redis.Client, error) <span class="cov0" title="0">{
+        rdb := redis.NewClient(&amp;redis.Options{
+                Addr:     addr,
+                Password: "", // no password set
+                DB:       0,  // use default DB
+        })
+
+        ctx := context.Background()
+        if err := rdb.Ping(ctx).Err(); err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("unable to connect to redis: %v", err)
+        }</span>
+
+        <span class="cov0" title="0">log.Println("Connected to Redis successfully")
+        return rdb, nil</span>
+}
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>
