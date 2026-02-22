@@ -13,62 +13,48 @@ The Digital Check-In System now consists of **two independent subsystems** runni
 
 ## High-Level Architecture
 
-```mermaid
-graph TB
-    subgraph "User Interface (Frontend - React)"
-        direction TB
-        Browser[Web Browser]
-        
-        subgraph "Route: /"
-            Home[Homepage Component<br/>System Selector]
-        end
-        
-        subgraph "Route: /flight-booking-system"
-            BookingUI[Flight Booking UI<br/>Date Picker → Flight List → Seat Map]
-        end
-        
-        subgraph "Route: /web-check-in"
-            CheckInUI[Web Check-In UI<br/>PNR Lookup → Seat Selection → Boarding Pass]
-        end
-    end
-    
-    subgraph "Backend Services (Go + Fiber)"
-        direction LR
-        
-        subgraph "Booking Service :8080"
-            BookingAPI[Flight Booking API<br/>- Search Flights<br/>- Book Tickets<br/>- Seat Management]
-        end
-        
-        subgraph "Check-In Service :8081"
-            CheckInAPI[Web Check-In API<br/>- PNR Lookup<br/>- Seat Hold (120s)<br/>- Complete Check-In]
-        end
-    end
-    
-    subgraph "Data Layer"
-        direction TB
-        
-        DB[(PostgreSQL<br/>- Flights<br/>- Seats<br/>- Bookings<br/>- CheckIns)]
-        
-        Cache[(Redis<br/>- Seat Holds<br/>- TTL: 45s (booking)<br/>- TTL: 120s (check-in))]
-    end
-    
-    Browser --> Home
-    Home -->|Book Flight| BookingUI
-    Home -->|Check-In| CheckInUI
-    
-    BookingUI --> BookingAPI
-    CheckInUI --> CheckInAPI
-    
-    BookingAPI --> DB
-    BookingAPI --> Cache
-    CheckInAPI --> DB
-    CheckInAPI --> Cache
-    
-    style Home fill:#e3f2fd
-    style BookingUI fill:#fff3e0
-    style CheckInUI fill:#e8f5e9
-    style BookingAPI fill:#fff3e0
-    style CheckInAPI fill:#e8f5e9
+```text
++---------------------------------------------------------------------------------+
+|                       User Interface (Frontend - React)                         |
+|                                                                                 |
+|                                 [Web Browser]                                   |
+|                                       |                                         |
+|                                       v                                         |
+|    +-----------------------------------------------------------------------+    |
+|    | Route: /                                                              |    |
+|    |                        [Homepage Component]                           |    |
+|    |                         [System Selector]                             |    |
+|    +-----------------------------------------------------------------------+    |
+|           | (Book Flight)                           | (Check-In)                |
+|           v                                         v                           |
+|  +-------------------------------+      +------------------------------------+  |
+|  | Route: /flight-booking-system |      | Route: /web-check-in               |  |
+|  |     [Flight Booking UI]       |      |       [Web Check-In UI]            |  |
+|  | Date Picker -> Flight -> Seat |      | PNR Lookup -> Seat -> Boarding Pass|  |
+|  +-------------------------------+      +------------------------------------+  |
++-------------------|-----------------------------------------|-------------------+
+                    |                                         |
++-------------------|-----------------------------------------|-------------------+
+|                   v             Backend Services            v                   |
+|  +-------------------------------+      +------------------------------------+  |
+|  | Booking Service :8080         |      | Check-In Service :8081             |  |
+|  |      [Flight Booking API]     |      |        [Web Check-In API]          |  |
+|  | - Search Flights              |      | - PNR Lookup                       |  |
+|  | - Book Tickets                |      | - Seat Hold (120s)                 |  |
+|  | - Seat Management             |      | - Complete Check-In                |  |
+|  +-------------------------------+      +------------------------------------+  |
+|            |          |                              |          |               |
++------------|----------|------------------------------|----------|---------------+
+             |          |                              |          |
++------------|----------|-------- Data Layer -----------|----------|--------------+
+|            |          |                              |          |               |
+|            v          +---------------+    +---------+          v               |
+|     [(PostgreSQL)]                    |    |                 [(Redis)]          |
+|     - Flights                         v    v                 - Seat Holds       |
+|     - Seats                        [Shared DB]               - TTL 45s (booking)|
+|     - Bookings                                               - TTL 120s (check) |
+|     - CheckIns                                                                  |
++---------------------------------------------------------------------------------+
 ```
 
 ---
@@ -77,82 +63,67 @@ graph TB
 
 ### Frontend Architecture
 
-```mermaid
-graph LR
-    subgraph "Frontend Components"
-        Main[main.jsx<br/>React Router Setup]
-        
-        Main --> Homepage[Homepage.jsx<br/>System Selector]
-        Main --> BookingApp[FlightBookingApp.jsx<br/>Existing System]
-        Main --> CheckInApp[WebCheckInApp.jsx<br/>New System]
-        
-        subgraph "Booking Components"
-            BookingApp --> FlightList[FlightList]
-            BookingApp --> SeatMapBooking[SeatMap]
-            BookingApp --> PassengerForm[PassengerForm]
-        end
-        
-        subgraph "Check-In Components"
-            CheckInApp --> PNRLookup[PNRLookup]
-            CheckInApp --> FlightConfirmation[FlightConfirmation]
-            CheckInApp --> SeatMapCheckIn[SeatMap<br/>Reused]
-            CheckInApp --> BaggageForm[BaggageForm]
-            CheckInApp --> PaymentModal[PaymentModal]
-            CheckInApp --> BoardingPass[BoardingPass]
-        end
-        
-        FlightList --> API1[Booking API]
-        SeatMapBooking --> API1
-        PassengerForm --> API1
-        
-        PNRLookup --> API2[Check-In API]
-        FlightConfirmation --> API2
-        SeatMapCheckIn --> API2
-        BaggageForm --> API2
-        PaymentModal --> API2
-        BoardingPass --> API2
-    end
-    
-    style BookingApp fill:#fff3e0
-    style CheckInApp fill:#e8f5e9
+```text
++---------------------------------------------------------------------------------+
+|                              Frontend Components                                |
+|                                                                                 |
+|                        [main.jsx (React Router Setup)]                          |
+|                                       |                                         |
+|         +-----------------------------+-----------------------------+           |
+|         |                             |                             |           |
+| [Homepage.jsx]             [FlightBookingApp.jsx]         [WebCheckInApp.jsx]   |
+|                                       |                             |           |
+|                        +--------------+--------------+              |           |
+|                        |              |              |              |           |
+|                        v              v              v              |           |
+|                  [FlightList]     [SeatMap]   [PassengerForm]       |           |
+|                        |              |              |              |           |
+|                        +--------------+--------------+              |           |
+|                                       |                             |           |
+|                                       |       +---------------------+---+       |
+|                                       |       |          |          |   |       |
+|                                       |       v          v          v   |       |
+|                                       |  [PNRLookup] [FlightConf] [SeatMap]     |
+|                                       |       |          |          |   |       |
+|                                       |       |    +-----+----------+   |       |
+|                                       |       |    |     |              |       |
+|                                       |       v    v     v              v       |
+|                                       | [BaggForm] [PayModal] [BoardingPass]    |
+|                                       |       |    |     |              |       |
+|                                       |       +----+-----+--------------+       |
+|                                       v            |                            |
+|                                 [Booking API]      v                            |
+|                                              [Check-In API]                     |
++---------------------------------------------------------------------------------+
 ```
 
 ### Backend Microservices
 
-```mermaid
-graph TB
-    subgraph "Booking Service (Port 8080)"
-        direction TB
-        BookingHandler[HTTP Handlers<br/>Fiber Router]
-        BookingService[Business Logic<br/>Flight Search, Bookings]
-        BookingRepo[Repository Layer<br/>PostgreSQL Access]
-        BookingCache[Redis Client<br/>45s Hold]
-        
-        BookingHandler --> BookingService
-        BookingService --> BookingRepo
-        BookingService --> BookingCache
-    end
-    
-    subgraph "Check-In Service (Port 8081)"
-        direction TB
-        CheckInHandler[HTTP Handlers<br/>Fiber Router]
-        CheckInService[Business Logic<br/>PNR Validation, Check-In]
-        CheckInRepo[Repository Layer<br/>PostgreSQL Access]
-        CheckInCache[Redis Client<br/>120s Hold]
-        
-        CheckInHandler --> CheckInService
-        CheckInService --> CheckInRepo
-        CheckInService --> CheckInCache
-    end
-    
-    BookingRepo -.->|Shared DB| DB[(PostgreSQL)]
-    CheckInRepo -.->|Shared DB| DB
-    
-    BookingCache -.->|Shared Cache| Redis[(Redis)]
-    CheckInCache -.->|Shared Cache| Redis
-    
-    style BookingCache fill:#fff9c4
-    style CheckInCache fill:#fff9c4
+```text
++----------------------------------------+     +----------------------------------------+
+|      Booking Service (Port 8080)       |     |      Check-In Service (Port 8081)      |
+|                                        |     |                                        |
+|      [HTTP Handlers/Fiber Router]      |     |      [HTTP Handlers/Fiber Router]      |
+|                   |                    |     |                   |                    |
+|                   v                    |     |                   v                    |
+|       [Business Logic Service]         |     |       [Business Logic Service]         |
+| [Flight Search, Bookings Management]   |     |   [PNR Validation, Check-In Process]   |
+|            |              |            |     |            |              |            |
+|            v              v            |     |            v              v            |
+|  [Repository Layer]  [Redis Client]    |     |  [Repository Layer]  [Redis Client]    |
+|   (PostgreSQL DB)      (45s Hold)      |     |   (PostgreSQL DB)     (120s Hold)      |
++------------|--------------|------------+     +------------|--------------|------------+
+             |              |                               |              |
+             |              |                               |              |
+             |              +-------------+   +-------------+              |
+             |                            |   |                            |
+             |                            v   v                            |
+             |                     [(Shared Redis Cache)]                  |
+             |                                                             |
+             +----------------------------+   +----------------------------+
+                                          |   |
+                                          v   v
+                                  [(Shared PostgreSQL DB)]
 ```
 
 ---
@@ -388,61 +359,41 @@ volumes:
 
 ## Deployment Architecture
 
-```mermaid
-graph TB
-    subgraph "Production Environment"
-        LB[Load Balancer<br/>NGINX]
-        
-        subgraph "Frontend Tier"
-            FE1[Frontend Instance 1]
-            FE2[Frontend Instance 2]
-        end
-        
-        subgraph "Backend Tier"
-            subgraph "Booking Service"
-                BS1[Booking :8080 - Instance 1]
-                BS2[Booking :8080 - Instance 2]
-            end
-            
-            subgraph "Check-In Service"
-                CS1[Check-In :8081 - Instance 1]
-                CS2[Check-In :8081 - Instance 2]
-            end
-        end
-        
-        subgraph "Data Tier"
-            PG_Primary[(PostgreSQL<br/>Primary)]
-            PG_Replica[(PostgreSQL<br/>Read Replica)]
-            Redis_Cluster[(Redis<br/>Cluster)]
-        end
-        
-        LB --> FE1
-        LB --> FE2
-        
-        FE1 --> BS1
-        FE1 --> BS2
-        FE1 --> CS1
-        FE1 --> CS2
-        
-        FE2 --> BS1
-        FE2 --> BS2
-        FE2 --> CS1
-        FE2 --> CS2
-        
-        BS1 --> PG_Primary
-        BS2 --> PG_Replica
-        CS1 --> PG_Primary
-        CS2 --> PG_Replica
-        
-        BS1 --> Redis_Cluster
-        BS2 --> Redis_Cluster
-        CS1 --> Redis_Cluster
-        CS2 --> Redis_Cluster
-    end
-    
-    style LB fill:#b3e5fc
-    style PG_Primary fill:#ffccbc
-    style Redis_Cluster fill:#fff9c4
+```text
++-----------------------------------------------------------------------------------+
+|                             Production Environment                                |
+|                                                                                   |
+|                                 [Load Balancer]                                   |
+|                                    (NGINX)                                        |
+|                                   /       \                                       |
+|                                  /         \                                      |
+|                                 v           v                                     |
+|  +-----------------------------------------------------------------------------+  |
+|  |                             Frontend Tier                                   |  |
+|  |                                                                             |  |
+|  |           [Frontend Instance 1]             [Frontend Instance 2]           |  |
+|  +-----------------|---------------------------------|-------------------------+  |
+|                    |                                 |                            |
+|  +-----------------|---------------------------------|-------------------------+  |
+|  | Backend Tier    |                                 |                         |  |
+|  |        +--------v-------+                +--------v-------+                 |  |
+|  |        | Booking Service|                |Check-In Service|                 |  |
+|  |    +---v---+        +---v---+        +---v---+        +---v---+             |  |
+|  |    | BS 1  |        | BS 2  |        | CS 1  |        | CS 2  |             |  |
+|  |    +-------+        +-------+        +-------+        +-------+             |  |
+|  |      |   |            |   |            |   |            |   |               |  |
+|  +------|---|------------|---|------------|---|------------|---|---------------+  |
+|         |   |            |   |            |   |            |   |                  |
+|  +------|---|------------|---|------------|---|------------|---|---------------+  |
+|  | Data |   |            |   |            |   |            |   |               |  |
+|  | Tier |   +--------+   |   +--------+   |   +--------+   |   +--------+      |  |
+|  |      v            |   v            |   v            |   v            |      |  |
+|  | [(PG Primary)]    | [(PG Replica)] | [(PG Primary)] | [(PG Replica)] |      |  |
+|  |                   v                v                v                v      |  |
+|  |                   +--------------------------------------------------+      |  |
+|  |                                  [(Redis Cluster)]                          |  |
+|  +-----------------------------------------------------------------------------+  |
++-----------------------------------------------------------------------------------+
 ```
 
 ---
@@ -462,35 +413,25 @@ graph TB
 
 ## Monitoring & Observability
 
-```mermaid
-graph LR
-    subgraph "Application Metrics"
-        Prometheus[Prometheus]
-        Grafana[Grafana Dashboards]
-    end
-    
-    subgraph "Logging"
-        Logs[Application Logs]
-        ELK[ELK Stack<br/>Elasticsearch + Kibana]
-    end
-    
-    subgraph "Tracing"
-        Jaeger[Jaeger<br/>Distributed Tracing]
-    end
-    
-    BookingService[Booking Service] --> Prometheus
-    CheckInService[Check-In Service] --> Prometheus
-    Prometheus --> Grafana
-    
-    BookingService --> Logs
-    CheckInService --> Logs
-    Logs --> ELK
-    
-    BookingService --> Jaeger
-    CheckInService --> Jaeger
-    
-    style Prometheus fill:#ffe0b2
-    style Grafana fill:#c8e6c9
+```text
++--------------------+       +------------------------------------+
+|                    | ----> |       Application Metrics          |
+| [Booking Service]  |       |   [Prometheus] ---> [Grafana]      |
+|                    |       +------------------------------------+
+|                    |
+|                    |       +------------------------------------+
+|                    | ----> |             Logging                |
+|                    |       | [App Logs] --> [ELK Stack (Kibana)]|
++--------------------+       +------------------------------------+
+         |
+         |                   +------------------------------------+
++--------------------+ ----> |             Tracing                |
+| [Check-In Service] |       |            [Jaeger]                |
+|                    |       +------------------------------------+
+|                    | ----> (To Logs)
+|                    |
+|                    | ----> (To Prometheus)
++--------------------+
 ```
 
 **Key Metrics to Monitor:**

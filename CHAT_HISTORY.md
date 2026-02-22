@@ -1,32 +1,68 @@
-# Chat History / Design Journey
+# Chat History - Digital Checking System
 
-## Summary of Collaboration
+This document contains a consolidated history of the prompts and core objectives provided to the AI agent for the **Digital Checking System** project. They are listed in chronological order.
 
-The design and implementation of SkyHigh Core was a collaborative process between the User (Architect) and the AI Assistant.
+*(Note: Raw verbatim chat prompts are encrypted inside the IDE's local database, so these entries reflect the primary User Objectives and goals reconstructed from each session's semantic summary.)*
 
-### Phase 1: Requirements Analysis
-- **Input**: User provided the `SkyHigh Core – Digital Check-In System I1-I2.pdf`.
-- **Action**: AI extracted core requirements:
-    1.  Seat States: Available -> Held -> Confirmed.
-    2.  120-second atomic hold.
-    3.  Baggage validation logic.
-    4.  High-performance read requirements.
+## 1. Fixing Database Schema
+**Date:** 2026-02-16
 
-### Phase 2: Implementation Planning
-- **Decision**: We adopted a **Phased Implementation Approach** to ensure structured delivery.
-    - Phase 1: Foundation (Go module, Docker).
-    - Phase 2: Core Domain (DB Schema, Seat Map).
-    - Phase 3: Concurrency (Redis Locking).
-    - Phase 4: Business Rules (Check-in, Baggage).
-    - Phase 5: Documentation & Testing.
+**Prompt / Objective:** 
+Resolve a database schema mismatch that is preventing the web check-in system from functioning correctly. 
+- The `bookings` table in the PostgreSQL database is missing the `pnr` column, causing errors during PNR lookups and data seeding. 
+- Add the `pnr` column to the existing `bookings` table, populate it with data from `booking_reference`, and ensure the backend services can correctly access and use this information.
 
-### Phase 3: Key Technical Decisions (Architecture)
-- **Concurrency**: We debated between DB row locking vs. Redis. We chose **Redis (Redlock/SET NX)** for the "hold" phase because it perfectly matches the ephemeral, high-throughput nature of the requirement (120s TTL). DB locking would be too heavy for just "selecting" a seat.
-- **Database Schema**: Normalized schema (`flights`, `seats`, `bookings`) was chosen to ensure data integrity for confirmed bookings. `seats` table has `is_booked` flag for fast availability checks.
-- **Project Structure**: Standard Go layout (`cmd`, `internal`, `pkg`) was selected for maintainability and clear separation of concerns.
+---
 
-### Phase 4: Verification
-- We verified the implementation by:
-    1.  Compiling the backend successfully.
-    2.  Reviewing the code against the "Hard Guarantee" requirement (Atomic Redis operations confirmed).
-    3.  Ensuring all NFRs (Latency, Scalability) are addressed by the chosen architecture.
+## 2. Implementing Optional Seat Selection
+**Date:** 2026-02-17
+
+**Prompt / Objective:** 
+Implement optional seat selection for flight bookings. 
+- Modify the database schema to allow nullable seat IDs.
+- Update backend services to handle bookings without seats.
+- Adjust the frontend to accommodate a new flow where seat selection can be deferred to the web check-in process.
+
+---
+
+## 3. Modify Web Check-In Seats
+**Date:** 2026-02-22
+
+**Prompt / Objective:** 
+Modify the web check-in process to allow users to change their initially selected seats and update baggage information. 
+- Free up previously selected seats when a new one is chosen.
+- Handle potential baggage fee differences. 
+- Proceed with implementing the changes based on the approved implementation plan.
+
+---
+
+## 4. Backend API Testing
+**Date:** 2026-02-22
+
+**Prompt / Objective:** 
+Create unit tests and generate coverage reports for the backend APIs of both the Booking backend and the Web Check-in backend. 
+- Analyze the existing codebase.
+- Write comprehensive tests.
+- Fix compile or mocking issues to ensure all necessary APIs are covered.
+
+---
+
+## 5. Document Review and Cleanup
+**Date:** 2026-02-22
+
+**Prompt / Objective:** 
+Review the project documentation against the provided PDF requirements.
+- Ensure all necessary files are present and correctly formatted, and remove unnecessary files.
+- Verify the content of various `.md` files and `docker-compose.yml`.
+- Ensure project structure adheres to specifications.
+- Create a `.gitignore` file.
+- Convert flow diagrams to an ASCII format for better compatibility.
+
+---
+
+## 6. Fixing Git Push Error
+**Date:** 2026-02-22
+
+**Prompt / Objective:** 
+Resolve an issue preventing code from being pushed to the GitHub repository.
+- Fix a "Permission denied" error when pushing to `origin` remote due to an authentication/authorization problem to safely upload code changes.
